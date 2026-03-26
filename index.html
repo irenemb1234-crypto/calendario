@@ -251,10 +251,9 @@ function normA(a){return((a%(Math.PI*2))+(Math.PI*2))%(Math.PI*2)}
 function moveHCW(nr){
   var na=normA(nr);
   if(handOff===null){handOff=nr;lastHA=na;updH();updI();return}
-  var oa=normA(handOff),delta=na-oa;
-  if(delta>Math.PI)delta-=Math.PI*2;
-  if(delta<-Math.PI)delta+=Math.PI*2;
-  if(delta>=0||Math.abs(delta)<.01){handOff=nr;lastHA=na;updH();updI()}
+  var oa=normA(handOff);
+  var cwDelta=((na-oa)%(Math.PI*2)+(Math.PI*2))%(Math.PI*2);
+  if(cwDelta>0&&cwDelta<Math.PI){handOff=nr;lastHA=na;updH();updI()}
 }
 
 cv.addEventListener("pointerdown",function(e){
