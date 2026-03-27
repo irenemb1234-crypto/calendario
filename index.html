@@ -248,12 +248,9 @@ function wPt(px,py){
 var ptrs=new Map(),dH=false,DZ=8,lastHA=null;
 var tapStart=null; // track tap for card clicks
 function normA(a){return((a%(Math.PI*2))+(Math.PI*2))%(Math.PI*2)}
-function moveHCW(nr){
+function moveH(nr){
   var na=normA(nr);
-  if(handOff===null){handOff=nr;lastHA=na;updH();updI();return}
-  var oa=normA(handOff);
-  var cwDelta=((na-oa)%(Math.PI*2)+(Math.PI*2))%(Math.PI*2);
-  if(cwDelta>0&&cwDelta<Math.PI){handOff=nr;lastHA=na;updH();updI()}
+  handOff=nr;lastHA=na;updH();updI();
 }
 
 cv.addEventListener("pointerdown",function(e){
@@ -270,7 +267,7 @@ cv.addEventListener("pointerdown",function(e){
         dH=true;cv.style.cursor="grabbing";
         var na=Math.atan2(pt.z,pt.x);
         if(handOff===null){handOff=hAng();lastHA=normA(handOff)}
-        moveHCW(na);buildB();return;
+        moveH(na);buildB();return;
       }
     }
     orbP=true;orb=false;orbS={x:e.clientX,y:e.clientY};oTS=tT;oPS=tP;
@@ -284,7 +281,7 @@ cv.addEventListener("pointerdown",function(e){
 cv.addEventListener("pointermove",function(e){
   if(!ptrs.has(e.pointerId))return;
   ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
-  if(dH){var pt=wPt(e.clientX,e.clientY);if(pt)moveHCW(Math.atan2(pt.z,pt.x));return}
+  if(dH){var pt=wPt(e.clientX,e.clientY);if(pt)moveH(Math.atan2(pt.z,pt.x));return}
   if(pin&&ptrs.size===2){var ps=Array.from(ptrs.values());tD=clamp(pDD*(pSD/Math.hypot(ps[0].x-ps[1].x,ps[0].y-ps[1].y)),isDesk?4:5,25)}
   else if(ptrs.size===1){
     var dx=e.clientX-orbS.x,dy=e.clientY-orbS.y;
