@@ -289,7 +289,7 @@ cv.addEventListener("pointermove",function(e){
   else if(ptrs.size===1){
     var dx=e.clientX-orbS.x,dy=e.clientY-orbS.y;
     if(orbP&&!orb&&Math.hypot(dx,dy)>5){orb=true;orbP=false;orbS={x:e.clientX,y:e.clientY};oTS=tT;oPS=tP;var c3=new THREE.Vector3(0,0,0);c3.project(cam);oCX=(c3.x+1)/2*cv.clientWidth;oCY=(-c3.y+1)/2*cv.clientHeight;oAS=Math.atan2(e.clientY-oCY,e.clientX-oCX)}
-    if(orb){var ca=Math.atan2(e.clientY-oCY,e.clientX-oCX);var ad=ca-oAS;if(ad>Math.PI)ad-=Math.PI*2;if(ad<-Math.PI)ad+=Math.PI*2;tT=oTS+ad;tP=clamp(oPS+(e.clientY-orbS.y)*.008,.01,Math.PI/2-.01)}
+    if(orb){var ca=Math.atan2(e.clientY-oCY,e.clientX-oCX);var ad=ca-oAS;if(ad>Math.PI)ad-=Math.PI*2;if(ad<-Math.PI)ad+=Math.PI*2;tT=oTS-ad;tP=clamp(oPS+(e.clientY-orbS.y)*.008,.01,Math.PI/2-.01)}
   }
 });
 
