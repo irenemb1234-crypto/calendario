@@ -53,10 +53,10 @@ var SEASONS=[
   {name:"Fall",accent:"#C98B5F",pill:"#F0D8BF"}
 ];
 var MONTHS=[
-  {a:"Dec",d:31,t:6},{a:"Jan",d:31,t:6},{a:"Feb",d:28,t:7},
-  {a:"Mar",d:31,t:10},{a:"Apr",d:30,t:12},{a:"May",d:31,t:16},
-  {a:"Jun",d:30,t:21},{a:"Jul",d:31,t:25},{a:"Aug",d:31,t:25},
-  {a:"Sep",d:30,t:20},{a:"Oct",d:31,t:14},{a:"Nov",d:30,t:9}
+  {a:"Dec",d:31,t:9},{a:"Jan",d:31,t:8},{a:"Feb",d:28,t:9},
+  {a:"Mar",d:31,t:13},{a:"Apr",d:30,t:16},{a:"May",d:31,t:19},
+  {a:"Jun",d:30,t:26},{a:"Jul",d:31,t:29},{a:"Aug",d:31,t:28},
+  {a:"Sep",d:30,t:23},{a:"Oct",d:31,t:17},{a:"Nov",d:30,t:12}
 ];
 var MI={12:0,1:1,2:2,3:3,4:4,5:5,6:6,7:7,8:8,9:9,10:10,11:11};
 var td=new Date();
@@ -359,7 +359,7 @@ document.getElementById("ir").addEventListener("click",resetAll);
 
 var lg=document.getElementById("lg");
 var c1=document.createElement("span");c1.textContent="cold";c1.style.marginRight="3px";lg.appendChild(c1);
-for(var i=0;i<14;i++){var d=document.createElement("div");d.className="lsw";d.style.width="clamp(6px,1.5vw,10px)";d.style.background=tHex(-10+(i/13)*45);lg.appendChild(d)}
+for(var i=0;i<14;i++){var d=document.createElement("div");d.className="lsw";d.style.width="clamp(6px,1.5vw,10px)";d.style.background=tHex(-1+(i/13)*41);lg.appendChild(d)}
 var c2=document.createElement("span");c2.textContent="warm";c2.style.marginLeft="3px";lg.appendChild(c2);
 
 // GOOGLE CALENDAR EVENTS
