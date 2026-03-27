@@ -53,10 +53,10 @@ var SEASONS=[
   {name:"Fall",accent:"#C98B5F",pill:"#F0D8BF"}
 ];
 var MONTHS=[
-  {a:"Dec",d:31,t:-2},{a:"Jan",d:31,t:-5},{a:"Feb",d:28,t:-1},
-  {a:"Mar",d:31,t:5},{a:"Apr",d:30,t:12},{a:"May",d:31,t:18},
-  {a:"Jun",d:30,t:24},{a:"Jul",d:31,t:30},{a:"Aug",d:31,t:28},
-  {a:"Sep",d:30,t:20},{a:"Oct",d:31,t:13},{a:"Nov",d:30,t:5}
+  {a:"Dec",d:31,t:6},{a:"Jan",d:31,t:6},{a:"Feb",d:28,t:7},
+  {a:"Mar",d:31,t:10},{a:"Apr",d:30,t:12},{a:"May",d:31,t:16},
+  {a:"Jun",d:30,t:21},{a:"Jul",d:31,t:25},{a:"Aug",d:31,t:25},
+  {a:"Sep",d:30,t:20},{a:"Oct",d:31,t:14},{a:"Nov",d:30,t:9}
 ];
 var MI={12:0,1:1,2:2,3:3,4:4,5:5,6:6,7:7,8:8,9:9,10:10,11:11};
 var td=new Date();
@@ -77,7 +77,7 @@ function sMid(i){var a=SB[i],b=SB[(i+1)%4];var m=(a+b)/2;if(b<a)m=(a+b+Math.PI*2
 var SM=[sMid(0),sMid(1),sMid(2),sMid(3)];
 
 // Temperature color
-var TS=[{t:-10,r:170,g:195,b:218},{t:-5,r:155,g:188,b:215},{t:0,r:145,g:182,b:210},{t:5,r:150,g:192,b:175},{t:10,r:162,g:200,b:148},{t:15,r:185,g:208,b:128},{t:20,r:220,g:200,b:120},{t:25,r:235,g:185,b:112},{t:30,r:232,g:155,b:108},{t:35,r:218,g:125,b:95}];
+var TS=[{t:-1,r:170,g:195,b:218},{t:3,r:155,g:188,b:215},{t:6,r:145,g:182,b:210},{t:10,r:150,g:192,b:175},{t:14,r:162,g:200,b:148},{t:18,r:185,g:208,b:128},{t:22,r:220,g:200,b:120},{t:26,r:235,g:185,b:112},{t:30,r:232,g:155,b:108},{t:35,r:218,g:125,b:95},{t:40,r:200,g:80,b:70}];
 function tRGB(t){
   if(t<=TS[0].t)return[TS[0].r/255,TS[0].g/255,TS[0].b/255];
   var last=TS[TS.length-1];if(t>=last.t)return[last.r/255,last.g/255,last.b/255];
