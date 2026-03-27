@@ -223,7 +223,7 @@ SEASONS.forEach(function(s,i){var a=SM[i];var sp=mkS(s.name.toUpperCase(),18,"rg
 var CB=Math.PI/2;
 var defD=isDesk?10:14;
 var cT=CB,cP=.05,cD=defD,tT=CB,tP=.05,tD=defD;
-var orb=false,orbS={x:0,y:0},oTS=0,oPS=0,oAS=0,oCX=0,oCY=0,orbP=false;
+var orb=false,orbS={x:0,y:0},oTS=0,oPS=0,oCX=0,oCY=0,oPX=0,oPY=0,orbP=false;
 var pin=false,pSD=0,pDD=0;
 function updC(){
   cT+=(tT-cT)*.1;cP+=(tP-cP)*.1;cD+=(tD-cD)*.1;
@@ -288,8 +288,8 @@ cv.addEventListener("pointermove",function(e){
   if(pin&&ptrs.size===2){var ps=Array.from(ptrs.values());tD=clamp(pDD*(pSD/Math.hypot(ps[0].x-ps[1].x,ps[0].y-ps[1].y)),isDesk?4:5,25)}
   else if(ptrs.size===1){
     var dx=e.clientX-orbS.x,dy=e.clientY-orbS.y;
-    if(orbP&&!orb&&Math.hypot(dx,dy)>5){orb=true;orbP=false;orbS={x:e.clientX,y:e.clientY};oTS=tT;oPS=tP;var c3=new THREE.Vector3(0,0,0);c3.project(cam);oCX=(c3.x+1)/2*cv.clientWidth;oCY=(-c3.y+1)/2*cv.clientHeight;oAS=Math.atan2(e.clientY-oCY,e.clientX-oCX)}
-    if(orb){var ca=Math.atan2(e.clientY-oCY,e.clientX-oCX);var ad=ca-oAS;if(ad>Math.PI)ad-=Math.PI*2;if(ad<-Math.PI)ad+=Math.PI*2;tT=oTS-ad;tP=clamp(oPS+(e.clientY-orbS.y)*.008,.01,Math.PI/2-.01)}
+    if(orbP&&!orb&&Math.hypot(dx,dy)>5){orb=true;orbP=false;orbS={x:e.clientX,y:e.clientY};oPS=tP;var c3=new THREE.Vector3(0,0,0);c3.project(cam);oCX=(c3.x+1)/2*cv.clientWidth;oCY=(-c3.y+1)/2*cv.clientHeight;oPX=e.clientX;oPY=e.clientY}
+    if(orb){var ppx=oPX-oCX,ppy=oPY-oCY,cpx=e.clientX-oCX,cpy=e.clientY-oCY;var cross=ppx*cpy-ppy*cpx,dot=ppx*cpx+ppy*cpy;var dAng=Math.atan2(cross,dot);tT-=dAng;tP=clamp(tP+(e.clientY-oPY)*.008,.01,Math.PI/2-.01);oPX=e.clientX;oPY=e.clientY}
   }
 });
 
