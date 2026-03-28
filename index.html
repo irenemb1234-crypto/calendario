@@ -328,13 +328,16 @@ SEASONS.forEach(function(s,i){var a=SM[i];var sp=mkS(s.name.toUpperCase(),14,"rg
 var CB=Math.PI/2;
 var defD=isDesk?10:14;
 var cT=CB,cP=.05,cD=defD,tT=CB,tP=.05,tD=defD;
+// Camera lookAt target (for quarter-arc detail view offset)
+var cLX=0,cLZ=0,tLX=0,tLZ=0;
 var orb=false,orbS={x:0,y:0},oTS=0,oPS=0,oCX=0,oCY=0,oPX=0,oPY=0,orbP=false;
 var pin=false,pSD=0,pDD=0;
 function updC(){
   cT+=(tT-cT)*.1;cP+=(tP-cP)*.1;cD+=(tD-cD)*.1;
+  cLX+=(tLX-cLX)*.08;cLZ+=(tLZ-cLZ)*.08;
   var p=clamp(cP,.01,Math.PI/2-.01);
-  cam.position.set(cD*Math.sin(p)*Math.cos(cT),cD*Math.cos(p),cD*Math.sin(p)*Math.sin(cT));
-  cam.lookAt(0,0,0);
+  cam.position.set(cLX+cD*Math.sin(p)*Math.cos(cT),cD*Math.cos(p),cLZ+cD*Math.sin(p)*Math.sin(cT));
+  cam.lookAt(cLX,0,cLZ);
 }
 
 var rP=new THREE.Plane(new THREE.Vector3(0,1,0),0);
@@ -433,23 +436,39 @@ cv.addEventListener("touchstart",function(e){e.preventDefault()},{passive:false}
 cv.addEventListener("touchmove",function(e){e.preventDefault()},{passive:false});
 
 // VIEWS
-var VW=isDesk?[{n:"Plan",p:.05,t:CB,d:10},{n:"Angle",p:.5,t:CB-.35,d:9.5},{n:"Isometric",p:.6,t:CB-Math.PI/4,d:10},{n:"Low",p:1.1,t:CB-.25,d:8},{n:"Section",p:Math.PI/2-.06,t:CB,d:7},{n:"Detail",p:.05,t:CB,d:isDesk?4.5:6}]:[{n:"Plan",p:.05,t:CB,d:14},{n:"Angle",p:.5,t:CB-.35,d:13},{n:"Isometric",p:.6,t:CB-Math.PI/4,d:14},{n:"Low",p:1.1,t:CB-.25,d:11},{n:"Section",p:Math.PI/2-.06,t:CB,d:9},{n:"Detail",p:.05,t:CB,d:isDesk?4.5:6}];
+var VW=isDesk?[{n:"Plan",p:.05,t:CB,d:10},{n:"Angle",p:.5,t:CB-.35,d:9.5},{n:"Isometric",p:.6,t:CB-Math.PI/4,d:10},{n:"Low",p:1.1,t:CB-.25,d:8},{n:"Section",p:Math.PI/2-.06,t:CB,d:7},{n:"Detail",p:.15,t:CB,d:isDesk?3.5:5}]:[{n:"Plan",p:.05,t:CB,d:14},{n:"Angle",p:.5,t:CB-.35,d:13},{n:"Isometric",p:.6,t:CB-Math.PI/4,d:14},{n:"Low",p:1.1,t:CB-.25,d:11},{n:"Section",p:Math.PI/2-.06,t:CB,d:9},{n:"Detail",p:.15,t:CB,d:isDesk?3.5:5}];
 var DETAIL_IDX=VW.length-1;
 var aV=0,detailCenter=0;
+function enterDetail(monthIdx){
+  // Quarter-arc: offset lookAt to a point on the ring so disc center is at lower-left
+  detailCenter=monthIdx;
+  var centerAng=DEC1+(monthIdx*30+15)*Math.PI/180;
+  // LookAt a point on the color ring at the season center
+  var lookR=MR*.9;
+  tLX=Math.cos(centerAng)*lookR;
+  tLZ=Math.sin(centerAng)*lookR;
+  // Position camera so the arc is centered and disc center goes to lower-left
+  // Camera theta should look from above the lookAt point, offset so center is lower-left
+  tT=centerAng+Math.PI;
+  tP=VW[DETAIL_IDX].p;
+  tD=VW[DETAIL_IDX].d;
+  buildDayDots(detailCenter);
+}
 function setV(i){
   aV=i;tP=VW[i].p;tD=VW[i].d;
   if(i===DETAIL_IDX){
-    // Center on current hand position
     var ha=hAng();
-    detailCenter=Math.floor(((ha-DEC1)*180/Math.PI)/30)%12;
-    tT=-ha+Math.PI;
-    buildDayDots(detailCenter);
+    var monthIdx=Math.floor(((ha-DEC1)*180/Math.PI)/30)%12;
+    if(monthIdx<0)monthIdx+=12;
+    enterDetail(monthIdx);
   }else{
     tT=VW[i].t;clearDayDots();
+    // Reset lookAt to disc center
+    tLX=0;tLZ=0;
   }
   buildV();
 }
-function resetAll(){handOff=null;lastHA=null;if(!isCurrentYear()){selectedYear=td.getFullYear();rebuildRing();rebuildCards();buildY()}updH();updI();buildB();setV(0);tD=defD}
+function resetAll(){handOff=null;lastHA=null;if(!isCurrentYear()){selectedYear=td.getFullYear();rebuildRing();rebuildCards();buildY()}updH();updI();buildB();tLX=0;tLZ=0;setV(0);tD=defD}
 
 function setYear(y){
   if(y===selectedYear)return;
@@ -601,18 +620,19 @@ function makeCardTexture(monthName,temp){
   return tex;
 }
 
+var CARD_R=LABEL_R+.15; // Position cards outside the label ring
 CARD_ORDER.forEach(function(ri,i){
   var rm=REAL_MONTHS[ri];
   var midAng=DEC1+(i*30+15)*Math.PI/180;
-  var r=MR;
   var tex=makeCardTexture(rm.name,MONTHS[i].t);
   var geo=new THREE.PlaneGeometry(CARD_W,CARD_H);
   var mat=new THREE.MeshBasicMaterial({map:tex,transparent:true,opacity:0,side:THREE.DoubleSide});
   var mesh=new THREE.Mesh(geo,mat);
-  // Position at the month's center, on the ring
-  mesh.position.set(Math.cos(midAng)*r, CARD_H/2+DH/2+.02, Math.sin(midAng)*r);
-  // Rotate to face along the ring's tangent (clockwise direction)
-  mesh.rotation.y=-midAng+Math.PI;
+  // Position outside the ring, facing outward radially
+  mesh.position.set(Math.cos(midAng)*CARD_R, CARD_H/2+DH/2+.02, Math.sin(midAng)*CARD_R);
+  // Rotate to face inward (toward center), readable from outside
+  mesh.rotation.y=-midAng-Math.PI/2;
+  mesh.userData={origPos:mesh.position.clone(),origRotY:mesh.rotation.y};
   cardGroup.add(mesh);
   cards.push({mesh:mesh,monthIdx:ri,angle:midAng});
 });
@@ -672,12 +692,11 @@ function fanCards(centerIdx){
 
 function collapseCards(){
   carouselActive=false;carouselCenter=-1;
-  cards.forEach(function(c,i){
-    if(cardStates[i]){
-      c.mesh.position.copy(cardStates[i].origPos);
-      c.mesh.rotation.y=cardStates[i].origRotY;
-      c.mesh.scale.set(1,1,1);
-    }
+  cards.forEach(function(c){
+    c.mesh.position.copy(c.mesh.userData.origPos);
+    c.mesh.rotation.y=c.mesh.userData.origRotY;
+    c.mesh.scale.set(1,1,1);
+    c.mesh.material.opacity=0;
   });
   cardStates=[];
 }
@@ -701,9 +720,8 @@ function updateCards(){
       c.mesh.material.opacity+=(st.tOpacity-c.mesh.material.opacity)*.1;
     });
   }else{
-    var phi=clamp(cP,.01,Math.PI/2-.01);
-    var cardAlpha=clamp((phi-0.6)/0.5,0,0.92);
-    cards.forEach(function(c){c.mesh.material.opacity=cardAlpha});
+    // Cards invisible by default — only visible during carousel fan
+    cards.forEach(function(c){c.mesh.material.opacity=0});
   }
 }
 
@@ -903,8 +921,8 @@ function buildDayDots(centerMonthIdx){
     detailArrowsEl.style.cssText="position:fixed;bottom:80px;left:0;right:0;z-index:10;display:flex;justify-content:center;gap:12px;pointer-events:none";
     detailArrowsEl.innerHTML='<button class="vb" style="pointer-events:auto" id="dLeft">← prev</button><button class="vb" style="pointer-events:auto" id="dRight">next →</button>';
     document.body.appendChild(detailArrowsEl);
-    document.getElementById("dLeft").addEventListener("click",function(){detailCenter=(detailCenter-1+12)%12;buildDayDots(detailCenter);var a=DEC1+(detailCenter*30+15)*Math.PI/180;tT=-a+Math.PI});
-    document.getElementById("dRight").addEventListener("click",function(){detailCenter=(detailCenter+1)%12;buildDayDots(detailCenter);var a=DEC1+(detailCenter*30+15)*Math.PI/180;tT=-a+Math.PI});
+    document.getElementById("dLeft").addEventListener("click",function(){enterDetail((detailCenter-1+12)%12)});
+    document.getElementById("dRight").addEventListener("click",function(){enterDetail((detailCenter+1)%12)});
   }
   detailArrowsEl.style.display="flex";
 }
