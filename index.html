@@ -16,7 +16,7 @@
   .b{border:none;padding:5px 12px;border-radius:99px;cursor:pointer;font-size:clamp(10px,1.5vw,12px);font-family:inherit;font-weight:800;outline:none;-webkit-tap-highlight-color:transparent}
   #ui-bot{position:fixed;bottom:0;left:0;right:0;z-index:10;display:flex;flex-direction:column;align-items:center;padding:0 10px 10px;pointer-events:none;gap:5px}
   #ui-bot>*{pointer-events:auto}
-  .info{display:flex;gap:8px;align-items:center;background:rgba(254,246,238,.93);border-radius:99px;padding:5px 14px;backdrop-filter:blur(6px)}
+  .info{display:flex;gap:8px;align-items:center;background:rgba(254,246,238,.93);border-radius:99px;padding:5px 14px;backdrop-filter:blur(6px);transition:all .3s ease}
   .info-d{font-size:clamp(13px,2.2vw,18px);font-weight:900;color:#2D2A26}
   .info-l{font-size:9px;font-weight:800;color:#B8A692;letter-spacing:.1em}
   .info-r{font-size:10px;font-weight:700;color:#E89B6C;cursor:pointer;border:none;background:none;font-family:inherit}
@@ -26,14 +26,19 @@
   .leg{display:flex;align-items:center;gap:2px;padding:4px 10px;background:#F5EBE0;border-radius:99px}
   .leg span{color:#B8A692;font-size:8px;font-weight:800}
   .lsw{height:6px;border-radius:99px}
+  .yrow{display:flex;gap:3px;margin-top:4px;overflow-x:auto;max-width:90vw;padding:2px 0;scrollbar-width:none;-ms-overflow-style:none}
+  .yrow::-webkit-scrollbar{display:none}
+  .yb{border:1.5px solid #D6CBBA;background:rgba(254,246,238,.9);color:#7A6E5E;padding:3px 8px;border-radius:99px;cursor:pointer;font-size:9px;font-family:inherit;font-weight:800;outline:none;white-space:nowrap;flex-shrink:0}
+  .yb.on{background:#2D2A26;color:#FEF6EE;border-color:#2D2A26}
   canvas{display:block;width:100%;height:100%;touch-action:none}
 </style>
 </head>
 <body>
 <div id="ui-top">
   <h1>Seasons</h1>
-  <p class="sub" id="sub-hint">orbit to explore · tap center to move hand</p>
+  <p class="sub" id="sub-hint">orbit to explore · tap center to move hand · double-tap for detail</p>
   <div class="brow" id="btns"></div>
+  <div class="yrow" id="yrow"></div>
 </div>
 <canvas id="c"></canvas>
 <div id="ui-bot">
@@ -94,6 +99,7 @@ function colorAtAng(ang){
 // Year progress
 var jan1A=dateAng(1,1),todA=dateAng(td.getMonth()+1,td.getDate());
 function isInPast(ang){
+  if(!isCurrentYear())return false;
   var a=((ang%(Math.PI*2))+(Math.PI*2))%(Math.PI*2);
   var s=((jan1A%(Math.PI*2))+(Math.PI*2))%(Math.PI*2);
   var e=((todA%(Math.PI*2))+(Math.PI*2))%(Math.PI*2);
@@ -114,8 +120,10 @@ var cam=new THREE.PerspectiveCamera(isDesk?32:40,1,.1,100);
 Sc.add(new THREE.AmbientLight(0xffffff,.85));
 var dl=new THREE.DirectionalLight(0xffffff,.4);dl.position.set(2,10,3);Sc.add(dl);
 
-// DISC — built with vertex colors, no shaders
-var OR=2.2,IR=.85,DH=.1,MR=(OR+IR)/2;
+// ═══════════════ DISC GEOMETRY ═══════════════
+// Concentric ring structure: hub → color ring → ticks → labels → outer border
+var HUB_R=0.45,IR=0.55,OR=1.35,DH=.08,MR=(OR+IR)/2;
+var TICK_IR=1.40,TICK_OR=1.55,LABEL_R=1.72,OUTER_R=1.88;
 var SEGS=512;
 
 function buildRing(yOff,normalUp){
@@ -149,9 +157,10 @@ function buildRing(yOff,normalUp){
   return geo;
 }
 
-var topMesh=new THREE.Mesh(buildRing(DH/2,true),new THREE.MeshBasicMaterial({vertexColors:true}));
+var ringMat=new THREE.MeshBasicMaterial({vertexColors:true});
+var topMesh=new THREE.Mesh(buildRing(DH/2,true),ringMat);
 Sc.add(topMesh);
-var botMesh=new THREE.Mesh(buildRing(-DH/2,false),new THREE.MeshBasicMaterial({vertexColors:true}));
+var botMesh=new THREE.Mesh(buildRing(-DH/2,false),ringMat.clone());
 Sc.add(botMesh);
 
 // Edges
@@ -180,29 +189,123 @@ function buildEdge(radius,faceOut){
   geo.setAttribute("normal",new THREE.Float32BufferAttribute(n,3));
   geo.setIndex(idx);return geo;
 }
-Sc.add(new THREE.Mesh(buildEdge(OR,true),new THREE.MeshBasicMaterial({vertexColors:true})));
-Sc.add(new THREE.Mesh(buildEdge(IR,false),new THREE.MeshBasicMaterial({vertexColors:true})));
+var outerEdgeMesh=new THREE.Mesh(buildEdge(OR,true),new THREE.MeshBasicMaterial({vertexColors:true}));
+Sc.add(outerEdgeMesh);
+var innerEdgeMesh=new THREE.Mesh(buildEdge(IR,false),new THREE.MeshBasicMaterial({vertexColors:true}));
+Sc.add(innerEdgeMesh);
 
-// DIVIDERS
+// ═══════════════ HUB & OUTER BORDER ═══════════════
+// Dark center hub
+var hubGeo=new THREE.CircleGeometry(HUB_R,64);
+hubGeo.rotateX(-Math.PI/2);
+var hubMesh=new THREE.Mesh(hubGeo,new THREE.MeshBasicMaterial({color:0x2D2A26}));
+hubMesh.position.y=DH/2+.005;
+Sc.add(hubMesh);
+
+// Drop shadow under disc
+var shadowGeo=new THREE.CircleGeometry(OUTER_R+.1,64);
+shadowGeo.rotateX(-Math.PI/2);
+var shadowMesh=new THREE.Mesh(shadowGeo,new THREE.MeshBasicMaterial({color:0x2D2A26,transparent:true,opacity:.06}));
+shadowMesh.position.y=-DH/2-.01;
+Sc.add(shadowMesh);
+
+// Outer thin border ring
+var borderGeo=new THREE.RingGeometry(OUTER_R-.02,OUTER_R,64);
+borderGeo.rotateX(-Math.PI/2);
+var borderMesh=new THREE.Mesh(borderGeo,new THREE.MeshBasicMaterial({color:0x2D2A26,transparent:true,opacity:.12}));
+borderMesh.position.y=DH/2+.004;
+Sc.add(borderMesh);
+
+// ═══════════════ TICK MARKS ═══════════════
+var tickGroup=new THREE.Group();Sc.add(tickGroup);
+function buildTicks(){
+  while(tickGroup.children.length){var c=tickGroup.children[0];if(c.geometry)c.geometry.dispose();if(c.material)c.material.dispose();tickGroup.remove(c)}
+  var y=DH/2+.004;
+  var verts=[],colors=[];
+  var monthDays=[31,28,31,30,31,30,31,31,30,31,30,31];
+  var calMonths=[12,1,2,3,4,5,6,7,8,9,10,11];
+  for(var mi=0;mi<12;mi++){
+    var mo=calMonths[mi];
+    for(var d=1;d<=monthDays[mi];d++){
+      var ang=dateAng(mo,d);
+      var isMonthStart=(d===1);
+      var isSeason=false;
+      for(var si=0;si<SB.length;si++){if(Math.abs(ang-SB[si])<0.02){isSeason=true;break}}
+      var len=isSeason?.12:isMonthStart?.08:.03;
+      var op=isSeason?.5:isMonthStart?.3:.12;
+      var past=isInPast(ang);
+      var r0=TICK_IR,r1=TICK_IR+len;
+      verts.push(Math.cos(ang)*r0,y,Math.sin(ang)*r0);
+      verts.push(Math.cos(ang)*r1,y,Math.sin(ang)*r1);
+      var cr=past?.7:.18,cg=past?.7:.16,cb=past?.7:.15;
+      colors.push(cr*op,cg*op,cb*op);
+      colors.push(cr*op,cg*op,cb*op);
+    }
+  }
+  var geo=new THREE.BufferGeometry();
+  geo.setAttribute("position",new THREE.Float32BufferAttribute(verts,3));
+  geo.setAttribute("color",new THREE.Float32BufferAttribute(colors,3));
+  var mat=new THREE.LineBasicMaterial({vertexColors:true,transparent:true});
+  tickGroup.add(new THREE.LineSegments(geo,mat));
+}
+buildTicks();
+
+// ═══════════════ DIVIDERS & SUNBURST ═══════════════
 var dG=new THREE.Group();Sc.add(dG);
-(function(){
-  var ri=IR+.03,ro=OR-.03,y=DH/2+.003;
-  SB.forEach(function(a){dG.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(Math.cos(a)*ri,y,Math.sin(a)*ri),new THREE.Vector3(Math.cos(a)*ro,y,Math.sin(a)*ro)]),new THREE.LineBasicMaterial({color:0x2D2A26,transparent:true,opacity:.3})))});
-  for(var i=0;i<12;i++){var a=DEC1+i*30*Math.PI/180;for(var d=0;d<5;d++){var t0=d/5,t1=(d+.45)/5;
-    dG.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(Math.cos(a)*lerp(ri,ro,t0),y,Math.sin(a)*lerp(ri,ro,t0)),new THREE.Vector3(Math.cos(a)*lerp(ri,ro,t1),y,Math.sin(a)*lerp(ri,ro,t1))]),new THREE.LineBasicMaterial({color:0x2D2A26,transparent:true,opacity:.09})))}}
-  var cr=IR-.04,co=OR+.04;
-  [jan1A,todA].forEach(function(a){dG.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(Math.cos(a)*cr,y+.003,Math.sin(a)*cr),new THREE.Vector3(Math.cos(a)*co,y+.003,Math.sin(a)*co)]),new THREE.LineBasicMaterial({color:0x2D2A26,transparent:true,opacity:.5})))});
-})();
+function buildDividers(){
+  while(dG.children.length){var c=dG.children[0];if(c.geometry)c.geometry.dispose();if(c.material)c.material.dispose();dG.remove(c)}
+  var y=DH/2+.005;
+  // Sunburst: 12 thin radiating lines from hub to color ring
+  for(var i=0;i<12;i++){
+    var a=DEC1+i*30*Math.PI/180;
+    dG.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(Math.cos(a)*HUB_R,y,Math.sin(a)*HUB_R),new THREE.Vector3(Math.cos(a)*IR,y,Math.sin(a)*IR)]),new THREE.LineBasicMaterial({color:0x2D2A26,transparent:true,opacity:.08})));
+  }
+  // Season boundaries on color ring
+  SB.forEach(function(a){dG.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(Math.cos(a)*(IR+.02),y,Math.sin(a)*(IR+.02)),new THREE.Vector3(Math.cos(a)*(OR-.02),y,Math.sin(a)*(OR-.02))]),new THREE.LineBasicMaterial({color:0x2D2A26,transparent:true,opacity:.25})))});
+  // Today/Jan1 markers (current year only)
+  if(isCurrentYear()){
+    var cr=IR-.06,co=TICK_OR+.03;
+    [jan1A,todA].forEach(function(a){dG.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(Math.cos(a)*cr,y+.002,Math.sin(a)*cr),new THREE.Vector3(Math.cos(a)*co,y+.002,Math.sin(a)*co)]),new THREE.LineBasicMaterial({color:0x2D2A26,transparent:true,opacity:.4})))});
+  }
+}
+buildDividers();
 
-// HAND
+// Rebuild ring geometry (for year changes)
+function rebuildRing(){
+  topMesh.geometry.dispose();topMesh.geometry=buildRing(DH/2,true);
+  botMesh.geometry.dispose();botMesh.geometry=buildRing(-DH/2,false);
+  outerEdgeMesh.geometry.dispose();outerEdgeMesh.geometry=buildEdge(OR,true);
+  innerEdgeMesh.geometry.dispose();innerEdgeMesh.geometry=buildEdge(IR,false);
+  buildTicks();buildDividers();
+}
+
+// ═══════════════ HAND ═══════════════
 var handOff=null;
 function hAng(){return handOff!==null?handOff:dateAng(td.getMonth()+1,td.getDate())}
 var hG=new THREE.Group();Sc.add(hG);
-var hL=OR+.3;
-var shaft=new THREE.Mesh(new THREE.BoxGeometry(hL,.03,.035),new THREE.MeshBasicMaterial({color:0x2D2A26,transparent:true,opacity:.5}));hG.add(shaft);
-var tip=new THREE.Mesh(new THREE.SphereGeometry(.05,12,12),new THREE.MeshBasicMaterial({color:0x2D2A26}));hG.add(tip);
-var ctr=new THREE.Mesh(new THREE.SphereGeometry(.07,16,16),new THREE.MeshBasicMaterial({color:0xE89B6C}));hG.add(ctr);
-function updH(){var a=hAng(),y=DH/2+.025,tx=Math.cos(a)*hL,tz=Math.sin(a)*hL;shaft.position.set(tx/2,y,tz/2);shaft.rotation.set(0,-a,0);tip.position.set(tx,y,tz);ctr.position.y=y}
+var hL=TICK_OR+.05;
+// Thin elegant line (PlaneGeometry rotated flat)
+var handW=.012,handMat=new THREE.MeshBasicMaterial({color:0xE89B6C,transparent:true,opacity:.7,side:THREE.DoubleSide});
+var shaft=new THREE.Mesh(new THREE.PlaneGeometry(hL,handW),handMat);
+shaft.rotation.x=-Math.PI/2;
+hG.add(shaft);
+// Crosshair at endpoint (+)
+var chSize=.05,chW=.006;
+var chMat=new THREE.MeshBasicMaterial({color:0xE89B6C,transparent:true,opacity:.8,side:THREE.DoubleSide});
+var chH=new THREE.Mesh(new THREE.PlaneGeometry(chSize,chW),chMat);chH.rotation.x=-Math.PI/2;hG.add(chH);
+var chV=new THREE.Mesh(new THREE.PlaneGeometry(chW,chSize),chMat.clone());chV.rotation.x=-Math.PI/2;hG.add(chV);
+// Small flat center dot
+var ctrGeo=new THREE.CircleGeometry(.035,24);ctrGeo.rotateX(-Math.PI/2);
+var ctr=new THREE.Mesh(ctrGeo,new THREE.MeshBasicMaterial({color:0xE89B6C}));hG.add(ctr);
+// Keep tip reference for drag detection
+var tip={position:new THREE.Vector3()};
+function updH(){
+  var a=hAng(),y=DH/2+.015,tx=Math.cos(a)*hL,tz=Math.sin(a)*hL;
+  shaft.position.set(tx/2,y,tz/2);shaft.rotation.y=-a;shaft.rotation.x=-Math.PI/2;
+  chH.position.set(tx,y,tz);chH.rotation.y=-a;chH.rotation.x=-Math.PI/2;
+  chV.position.set(tx,y,tz);chV.rotation.y=-a;chV.rotation.x=-Math.PI/2;
+  tip.position.set(tx,y,tz);ctr.position.y=y;
+}
 updH();
 
 // LABELS
@@ -216,8 +319,8 @@ function mkS(txt,fs,col){
   var sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:false}));
   sp.scale.set(w/120,h/120,1);return sp;
 }
-MONTHS.forEach(function(m,i){var a=DEC1+(i*30+15)*Math.PI/180;var sp=mkS(m.a,22,"rgba(45,42,38,0.5)");sp.position.set(Math.cos(a)*MR,DH/2+.06,Math.sin(a)*MR);lG.add(sp)});
-SEASONS.forEach(function(s,i){var a=SM[i];var sp=mkS(s.name.toUpperCase(),18,"rgba(45,42,38,0.18)");sp.position.set(Math.cos(a)*(OR+.4),.03,Math.sin(a)*(OR+.4));lG.add(sp)});
+MONTHS.forEach(function(m,i){var a=DEC1+(i*30+15)*Math.PI/180;var sp=mkS(m.a,18,"rgba(45,42,38,0.45)");sp.position.set(Math.cos(a)*LABEL_R,DH/2+.05,Math.sin(a)*LABEL_R);lG.add(sp)});
+SEASONS.forEach(function(s,i){var a=SM[i];var sp=mkS(s.name.toUpperCase(),14,"rgba(45,42,38,0.14)");sp.position.set(Math.cos(a)*(OUTER_R+.25),.02,Math.sin(a)*(OUTER_R+.25));lG.add(sp)});
 
 // CAMERA
 var CB=Math.PI/2;
@@ -295,7 +398,17 @@ cv.addEventListener("pointerup",function(e){
   if(tapStart&&tapStart.id===e.pointerId&&!dH&&!orb){
     var dx=e.clientX-tapStart.x,dy=e.clientY-tapStart.y;
     if(Math.hypot(dx,dy)<8&&Date.now()-tapStart.t<300){
-      checkCardClick(tapStart.x,tapStart.y);
+      var now=Date.now();
+      // Double-tap detection for detail view
+      if(now-lastTapTime<400&&Math.hypot(e.clientX-lastTapPos.x,e.clientY-lastTapPos.y)<30){
+        if(aV!==DETAIL_IDX){setV(DETAIL_IDX)}else{setV(0)}
+        lastTapTime=0;
+      }else{
+        lastTapTime=now;lastTapPos={x:e.clientX,y:e.clientY};
+        if(!checkDotClick(tapStart.x,tapStart.y)){
+          checkCardClick(tapStart.x,tapStart.y);
+        }
+      }
     }
   }
   tapStart=null;
@@ -318,10 +431,39 @@ cv.addEventListener("touchstart",function(e){e.preventDefault()},{passive:false}
 cv.addEventListener("touchmove",function(e){e.preventDefault()},{passive:false});
 
 // VIEWS
-var VW=isDesk?[{n:"Plan",p:.05,t:CB,d:10},{n:"Angle",p:.5,t:CB-.35,d:9.5},{n:"Isometric",p:.6,t:CB-Math.PI/4,d:10},{n:"Low",p:1.1,t:CB-.25,d:8},{n:"Section",p:Math.PI/2-.06,t:CB,d:7}]:[{n:"Plan",p:.05,t:CB,d:14},{n:"Angle",p:.5,t:CB-.35,d:13},{n:"Isometric",p:.6,t:CB-Math.PI/4,d:14},{n:"Low",p:1.1,t:CB-.25,d:11},{n:"Section",p:Math.PI/2-.06,t:CB,d:9}];
-var aV=0;
-function setV(i){aV=i;tP=VW[i].p;tT=VW[i].t;tD=VW[i].d;buildV()}
-function resetAll(){handOff=null;lastHA=null;updH();updI();buildB();setV(0);tD=defD}
+var VW=isDesk?[{n:"Plan",p:.05,t:CB,d:10},{n:"Angle",p:.5,t:CB-.35,d:9.5},{n:"Isometric",p:.6,t:CB-Math.PI/4,d:10},{n:"Low",p:1.1,t:CB-.25,d:8},{n:"Section",p:Math.PI/2-.06,t:CB,d:7},{n:"Detail",p:.05,t:CB,d:isDesk?4.5:6}]:[{n:"Plan",p:.05,t:CB,d:14},{n:"Angle",p:.5,t:CB-.35,d:13},{n:"Isometric",p:.6,t:CB-Math.PI/4,d:14},{n:"Low",p:1.1,t:CB-.25,d:11},{n:"Section",p:Math.PI/2-.06,t:CB,d:9},{n:"Detail",p:.05,t:CB,d:isDesk?4.5:6}];
+var DETAIL_IDX=VW.length-1;
+var aV=0,detailCenter=0;
+function setV(i){
+  aV=i;tP=VW[i].p;tD=VW[i].d;
+  if(i===DETAIL_IDX){
+    // Center on current hand position
+    var ha=hAng();
+    detailCenter=Math.floor(((ha-DEC1)*180/Math.PI)/30)%12;
+    tT=-ha+Math.PI;
+    buildDayDots(detailCenter);
+  }else{
+    tT=VW[i].t;clearDayDots();
+  }
+  buildV();
+}
+function resetAll(){handOff=null;lastHA=null;if(!isCurrentYear()){selectedYear=td.getFullYear();rebuildRing();rebuildCards();buildY()}updH();updI();buildB();setV(0);tD=defD}
+
+function setYear(y){
+  if(y===selectedYear)return;
+  selectedYear=y;
+  if(!isCurrentYear()){handOff=dateAng(1,1);lastHA=normA(handOff)}else{handOff=null;lastHA=null}
+  rebuildRing();rebuildCards();updH();updI();buildB();buildY();
+}
+
+function buildY(){
+  var el=document.getElementById("yrow");el.innerHTML="";
+  for(var y=2015;y<=2026;y++){
+    var b=document.createElement("button");b.className="yb"+(y===selectedYear?" on":"");b.textContent=y;
+    (function(yr){b.addEventListener("click",function(){setYear(yr)})})(y);
+    el.appendChild(b);
+  }
+}
 
 function buildB(){
   var el=document.getElementById("btns");el.innerHTML="";
@@ -346,10 +488,10 @@ function buildV(){
 }
 
 function updI(){
-  var isT=handOff===null;
+  var isT=handOff===null&&isCurrentYear();
   var dd=isT?{month:mN[td.getMonth()],day:td.getDate()}:angDate(hAng());
   document.getElementById("il").textContent=isT?"TODAY":"SELECTED";
-  document.getElementById("id").textContent=isT?td.getDate()+" "+mN[td.getMonth()]+" "+td.getFullYear():dd.day+" "+dd.month;
+  document.getElementById("id").textContent=isT?td.getDate()+" "+mN[td.getMonth()]+" "+td.getFullYear():dd.day+" "+dd.month+" "+selectedYear;
   document.getElementById("ir").style.display=isT?"none":"block";
 }
 document.getElementById("ir").addEventListener("click",resetAll);
@@ -359,47 +501,51 @@ var c1=document.createElement("span");c1.textContent="cold";c1.style.marginRight
 for(var i=0;i<14;i++){var d=document.createElement("div");d.className="lsw";d.style.width="clamp(6px,1.5vw,10px)";d.style.background=tHex(-1+(i/13)*41);lg.appendChild(d)}
 var c2=document.createElement("span");c2.textContent="warm";c2.style.marginLeft="3px";lg.appendChild(c2);
 
+// ═══════════════ YEAR MANAGEMENT ═══════════════
+var selectedYear=td.getFullYear();
+function isCurrentYear(){return selectedYear===td.getFullYear()}
+
 // GOOGLE CALENDAR EVENTS
 var GCAL_EVENTS=[
-  {m:1,d:2,t:"15:30",s:"Llamada ginecóloga",col:"#E89B6C"},
-  {m:1,d:13,t:"09:10",s:"Cita Irene — C.S. Espronceda",col:"#F6BF26"},
-  {m:1,d:15,t:"13:30",s:"Dentista",col:"#F6BF26"},
-  {m:1,d:16,t:"",s:"Comida CyT",col:"#F6BF26",allDay:true},
-  {m:1,d:19,t:"19:00",s:"Terapia",col:"#8BB0C9"},
-  {m:1,d:26,t:"15:30",s:"Escribir a Beatriz",col:"#E89B6C"},
-  {m:2,d:3,t:"19:00",s:"Terapia",col:"#8BB0C9"},
-  {m:2,d:8,t:"14:30",s:"Reserva Tiflis Malasaña",col:"#E89B6C"},
-  {m:2,d:9,t:"10:30",s:"Quien pagó por mi pan?",col:"#E89B6C"},
-  {m:2,d:11,t:"10:30",s:"Matrícula ETSAV",col:"#D50000"},
-  {m:2,d:16,t:"19:00",s:"Terapia",col:"#8BB0C9"},
-  {m:2,d:27,t:"",s:"Adobe revisar suscripción",col:"#D50000",allDay:true},
-  {m:3,d:1,t:"",s:"JRC TRAINEESHIPS!!",col:"#D50000",allDay:true},
-  {m:3,d:2,t:"",s:"BCG Women's Boot Camp?",col:"#F6BF26",allDay:true},
-  {m:3,d:10,t:"19:30",s:"Psiquiatra (online)",col:"#E4C441"},
-  {m:3,d:16,t:"19:00",s:"Terapia",col:"#8BB0C9"},
-  {m:3,d:17,t:"09:30",s:"Pedir vacaciones",col:"#D50000"},
-  {m:3,d:18,t:"",s:"NORTON CANCELAR ANTIVIRUS",col:"#D50000",allDay:true},
-  {m:3,d:28,t:"",s:"Adobe revisar suscripción",col:"#D50000",allDay:true},
-  {m:3,d:29,t:"",s:"JDP CBRE?",col:"#D50000",allDay:true},
-  {m:3,d:29,t:"19:08",s:"ALVIA Madrid → Santander",col:"#8E24AA"},
-  {m:3,d:30,t:"",s:"Vacaciones?",col:"#E4C441",allDay:true},
-  {m:3,d:30,t:"19:00",s:"Terapia",col:"#8BB0C9"},
-  {m:3,d:30,t:"20:30",s:"Rosalía concierto LUX",col:"#7986CB"},
-  {m:3,d:31,t:"",s:"Vacaciones?",col:"#E4C441",allDay:true},
-  {m:4,d:1,t:"",s:"BCG Women's Boot Camp?",col:"#F6BF26",allDay:true},
-  {m:4,d:1,t:"",s:"Vacaciones?",col:"#E4C441",allDay:true},
-  {m:4,d:5,t:"19:00",s:"ALVIA Santander → Madrid",col:"#8E24AA"},
-  {m:4,d:6,t:"",s:"Concurso ideas CIU Ayto Madrid?",col:"#D50000",allDay:true},
-  {m:4,d:15,t:"",s:"Pago matrícula UPM 2º plazo",col:"#D50000",allDay:true},
-  {m:8,d:25,t:"",s:"Happy birthday!",col:"#E89B6C",allDay:true},
-  {m:9,d:8,t:"11:00",s:"Neurología Fund. Jiménez Díaz",col:"#8BB0C9"}
+  {y:2026,m:1,d:2,t:"15:30",s:"Llamada ginecóloga",col:"#E89B6C"},
+  {y:2026,m:1,d:13,t:"09:10",s:"Cita Irene — C.S. Espronceda",col:"#F6BF26"},
+  {y:2026,m:1,d:15,t:"13:30",s:"Dentista",col:"#F6BF26"},
+  {y:2026,m:1,d:16,t:"",s:"Comida CyT",col:"#F6BF26",allDay:true},
+  {y:2026,m:1,d:19,t:"19:00",s:"Terapia",col:"#8BB0C9"},
+  {y:2026,m:1,d:26,t:"15:30",s:"Escribir a Beatriz",col:"#E89B6C"},
+  {y:2026,m:2,d:3,t:"19:00",s:"Terapia",col:"#8BB0C9"},
+  {y:2026,m:2,d:8,t:"14:30",s:"Reserva Tiflis Malasaña",col:"#E89B6C"},
+  {y:2026,m:2,d:9,t:"10:30",s:"Quien pagó por mi pan?",col:"#E89B6C"},
+  {y:2026,m:2,d:11,t:"10:30",s:"Matrícula ETSAV",col:"#D50000"},
+  {y:2026,m:2,d:16,t:"19:00",s:"Terapia",col:"#8BB0C9"},
+  {y:2026,m:2,d:27,t:"",s:"Adobe revisar suscripción",col:"#D50000",allDay:true},
+  {y:2026,m:3,d:1,t:"",s:"JRC TRAINEESHIPS!!",col:"#D50000",allDay:true},
+  {y:2026,m:3,d:2,t:"",s:"BCG Women's Boot Camp?",col:"#F6BF26",allDay:true},
+  {y:2026,m:3,d:10,t:"19:30",s:"Psiquiatra (online)",col:"#E4C441"},
+  {y:2026,m:3,d:16,t:"19:00",s:"Terapia",col:"#8BB0C9"},
+  {y:2026,m:3,d:17,t:"09:30",s:"Pedir vacaciones",col:"#D50000"},
+  {y:2026,m:3,d:18,t:"",s:"NORTON CANCELAR ANTIVIRUS",col:"#D50000",allDay:true},
+  {y:2026,m:3,d:28,t:"",s:"Adobe revisar suscripción",col:"#D50000",allDay:true},
+  {y:2026,m:3,d:29,t:"",s:"JDP CBRE?",col:"#D50000",allDay:true},
+  {y:2026,m:3,d:29,t:"19:08",s:"ALVIA Madrid → Santander",col:"#8E24AA"},
+  {y:2026,m:3,d:30,t:"",s:"Vacaciones?",col:"#E4C441",allDay:true},
+  {y:2026,m:3,d:30,t:"19:00",s:"Terapia",col:"#8BB0C9"},
+  {y:2026,m:3,d:30,t:"20:30",s:"Rosalía concierto LUX",col:"#7986CB"},
+  {y:2026,m:3,d:31,t:"",s:"Vacaciones?",col:"#E4C441",allDay:true},
+  {y:2026,m:4,d:1,t:"",s:"BCG Women's Boot Camp?",col:"#F6BF26",allDay:true},
+  {y:2026,m:4,d:1,t:"",s:"Vacaciones?",col:"#E4C441",allDay:true},
+  {y:2026,m:4,d:5,t:"19:00",s:"ALVIA Santander → Madrid",col:"#8E24AA"},
+  {y:2026,m:4,d:6,t:"",s:"Concurso ideas CIU Ayto Madrid?",col:"#D50000",allDay:true},
+  {y:2026,m:4,d:15,t:"",s:"Pago matrícula UPM 2º plazo",col:"#D50000",allDay:true},
+  {y:2026,m:8,d:25,t:"",s:"Happy birthday!",col:"#E89B6C",allDay:true},
+  {y:2026,m:9,d:8,t:"11:00",s:"Neurología Fund. Jiménez Díaz",col:"#8BB0C9"}
 ];
-function getEventsForMonth(mo){return GCAL_EVENTS.filter(function(e){return e.m===mo})}
-function getEventsForDay(mo,dy){return GCAL_EVENTS.filter(function(e){return e.m===mo&&e.d===dy})}
+function getEventsForMonth(y,mo){return GCAL_EVENTS.filter(function(e){return e.y===y&&e.m===mo})}
+function getEventsForDay(y,mo,dy){return GCAL_EVENTS.filter(function(e){return e.y===y&&e.m===mo&&e.d===dy})}
 
 // MONTH CARDS — vertical planes at each month, visible when tilted
 var cardGroup=new THREE.Group();Sc.add(cardGroup);
-var CARD_H=isDesk?1.2:1.8, CARD_W=isDesk?(OR-IR)*.7:(OR-IR+.3);
+var CARD_H=isDesk?1.0:1.4, CARD_W=isDesk?(OR-IR)*.8:(OR-IR+.2);
 var cards=[];
 var REAL_MONTHS=[
   {name:"January",cal:1,days:31},{name:"February",cal:2,days:28},
@@ -437,7 +583,7 @@ function makeCardTexture(monthName,temp){
   cx.fillText(temp+"°C",128,tmpY);
   // Event count badge
   var calNum=REAL_MONTHS.filter(function(r){return r.name===monthName})[0];
-  var evCount=calNum?getEventsForMonth(calNum.cal).length:0;
+  var evCount=calNum?getEventsForMonth(selectedYear,calNum.cal).length:0;
   if(evCount>0){
     cx.fillStyle="#E89B6C";cx.beginPath();cx.arc(128,badgeY,isDesk?13:16,0,Math.PI*2);cx.fill();
     cx.fillStyle="#FEF6EE";cx.font="800 "+bFs+"px Nunito,sans-serif";
@@ -469,12 +615,94 @@ CARD_ORDER.forEach(function(ri,i){
   cards.push({mesh:mesh,monthIdx:ri,angle:midAng});
 });
 
-// Update card visibility based on camera tilt
+// Rebuild card textures (for year changes)
+function rebuildCards(){
+  cards.forEach(function(c,i){
+    var ri=CARD_ORDER[i];
+    var rm=REAL_MONTHS[ri];
+    if(c.mesh.material.map)c.mesh.material.map.dispose();
+    c.mesh.material.map=makeCardTexture(rm.name,MONTHS[i].t);
+    c.mesh.material.needsUpdate=true;
+  });
+}
+
+// ═══════════════ CARD CAROUSEL ═══════════════
+var carouselActive=false,carouselCenter=-1;
+var cardStates=[]; // {sx,sy,sz, tx,ty,tz, sry,try_, scale,tScale, opacity,tOpacity, delay}
+
+function fanCards(centerIdx){
+  carouselActive=true;carouselCenter=centerIdx;
+  cardStates=[];
+  var fwd=new THREE.Vector3();cam.getWorldDirection(fwd);
+  var camRight=new THREE.Vector3();camRight.crossVectors(fwd,new THREE.Vector3(0,1,0)).normalize();
+  var camUp=new THREE.Vector3(0,1,0);
+  var lookPt=new THREE.Vector3().copy(cam.position).add(fwd.multiplyScalar(isDesk?3.5:5));
+
+  for(var i=0;i<cards.length;i++){
+    var c=cards[i];
+    var diff=((i-centerIdx)%12+12)%12;if(diff>6)diff-=12;
+    var visible=Math.abs(diff)<=2;
+    // Store original positions
+    var origPos=c.mesh.position.clone();
+    var origRotY=c.mesh.rotation.y;
+
+    if(visible){
+      var xOff=diff*(isDesk?.55:.45);
+      var zOff=-Math.abs(diff)*.3;
+      var targetPos=lookPt.clone().add(camRight.clone().multiplyScalar(xOff)).add(new THREE.Vector3(0,Math.abs(diff)*-.05,0)).add(fwd.clone().normalize().multiplyScalar(zOff));
+      var targetRotY=Math.atan2(cam.position.x-targetPos.x,cam.position.z-targetPos.z);
+      var sc=diff===0?1:.85-Math.abs(diff)*.12;
+      var op=diff===0?.95:.7-Math.abs(diff)*.15;
+      // Random start offset for "falling into place"
+      var rndX=(Math.random()-.5)*2,rndY=Math.random()*1.5+.5,rndZ=(Math.random()-.5)*1;
+      var startPos=targetPos.clone().add(new THREE.Vector3(rndX,rndY,rndZ));
+      c.mesh.position.copy(startPos);
+      c.mesh.rotation.y=targetRotY+(Math.random()-.5)*.4;
+      c.mesh.scale.set(sc*.3,sc*.3,1);
+      c.mesh.material.opacity=0;
+      cardStates.push({idx:i,tx:targetPos.x,ty:targetPos.y,tz:targetPos.z,try_:targetRotY,tScale:sc,tOpacity:op,delay:Math.abs(diff)*.06+Math.random()*.04,t:0,origPos:origPos,origRotY:origRotY});
+    }else{
+      c.mesh.material.opacity=0;
+      cardStates.push({idx:i,tx:origPos.x,ty:origPos.y,tz:origPos.z,try_:origRotY,tScale:1,tOpacity:0,delay:0,t:1,origPos:origPos,origRotY:origRotY});
+    }
+  }
+}
+
+function collapseCards(){
+  carouselActive=false;carouselCenter=-1;
+  cards.forEach(function(c,i){
+    if(cardStates[i]){
+      c.mesh.position.copy(cardStates[i].origPos);
+      c.mesh.rotation.y=cardStates[i].origRotY;
+      c.mesh.scale.set(1,1,1);
+    }
+  });
+  cardStates=[];
+}
+
 function updateCards(){
-  var phi=clamp(cP,.01,Math.PI/2-.01);
-  // Cards start appearing at phi ~0.7 (Low view), fully visible at ~1.2
-  var cardAlpha=clamp((phi-0.6)/0.5,0,0.92);
-  cards.forEach(function(c){c.mesh.material.opacity=cardAlpha});
+  if(carouselActive){
+    // Animate cards to their fan positions
+    cardStates.forEach(function(st){
+      if(st.tOpacity<=0)return;
+      st.t=Math.min(st.t+.02,1);
+      var et=Math.max(0,st.t-st.delay)/(1-st.delay);
+      et=et<0?0:et>1?1:et;
+      // Ease out cubic
+      var e=1-Math.pow(1-et,3);
+      var c=cards[st.idx];
+      c.mesh.position.x+=(st.tx-c.mesh.position.x)*(.08+e*.04);
+      c.mesh.position.y+=(st.ty-c.mesh.position.y)*(.08+e*.04);
+      c.mesh.position.z+=(st.tz-c.mesh.position.z)*(.08+e*.04);
+      c.mesh.rotation.y+=(st.try_-c.mesh.rotation.y)*.1;
+      var cs=c.mesh.scale.x;cs+=(st.tScale-cs)*.1;c.mesh.scale.set(cs,cs,1);
+      c.mesh.material.opacity+=(st.tOpacity-c.mesh.material.opacity)*.1;
+    });
+  }else{
+    var phi=clamp(cP,.01,Math.PI/2-.01);
+    var cardAlpha=clamp((phi-0.6)/0.5,0,0.92);
+    cards.forEach(function(c){c.mesh.material.opacity=cardAlpha});
+  }
 }
 
 // Card click detection
@@ -483,7 +711,7 @@ var calOverlay=null;
 function showCalendar(monthIdx){
   if(calOverlay){calOverlay.remove();calOverlay=null}
   var rm=REAL_MONTHS[monthIdx];
-  var year=td.getFullYear();
+  var year=selectedYear;
   // For Dec, could be previous year context, but keep current year for simplicity
   var mo=rm.cal;
 
@@ -524,8 +752,8 @@ function showCalendar(monthIdx){
   // Day cells
   for(var d=1;d<=daysInMonth;d++){
     var cell=document.createElement("div");
-    var isToday=(d===td.getDate()&&mo===td.getMonth()+1&&year===td.getFullYear());
-    var dayEvts=getEventsForDay(mo,d);
+    var isToday=(isCurrentYear()&&d===td.getDate()&&mo===td.getMonth()+1);
+    var dayEvts=getEventsForDay(year,mo,d);
     cell.style.cssText="font-size:13px;font-weight:"+(isToday?"900":"600")+";color:"+(isToday?"#FEF6EE":"#2D2A26")+";padding:4px 2px 2px;border-radius:8px;background:"+(isToday?"#E89B6C":"transparent")+";display:flex;flex-direction:column;align-items:center;gap:1px;cursor:"+(dayEvts.length?"pointer":"default")+";transition:background .15s";
     var num=document.createElement("span");num.textContent=d;cell.appendChild(num);
     if(dayEvts.length>0){
@@ -599,10 +827,128 @@ function checkCardClick(px,py){
   var meshes=cards.map(function(c){return c.mesh});
   var hits=rc.intersectObjects(meshes);
   if(hits.length>0){
-    // Find which card
     for(var i=0;i<cards.length;i++){
-      if(cards[i].mesh===hits[0].object&&cards[i].mesh.material.opacity>0.3){
-        showCalendar(cards[i].monthIdx);
+      if(cards[i].mesh===hits[0].object&&cards[i].mesh.material.opacity>0.15){
+        if(carouselActive){
+          // In carousel: center card opens calendar, others shift focus
+          var diff=((i-carouselCenter)%12+12)%12;if(diff>6)diff-=12;
+          if(diff===0){showCalendar(cards[i].monthIdx)}
+          else{fanCards(i)}
+        }else{
+          // Not in carousel: activate carousel centered on this card
+          fanCards(i);
+        }
+        return true;
+      }
+    }
+  }
+  // Click on empty space collapses carousel
+  if(carouselActive){collapseCards();return true}
+  return false;
+}
+
+// Escape key collapses carousel
+document.addEventListener("keydown",function(e){
+  if(e.key==="Escape"){
+    if(calOverlay){calOverlay.remove();calOverlay=null}
+    else if(carouselActive){collapseCards()}
+  }
+});
+
+// ═══════════════ QUARTER-ARC DETAIL VIEW ═══════════════
+var dayDotsGroup=new THREE.Group();Sc.add(dayDotsGroup);
+var dayDots=[],selectedDot=-1;
+var detailArrowsEl=null;
+
+function clearDayDots(){
+  while(dayDotsGroup.children.length){var c=dayDotsGroup.children[0];if(c.geometry)c.geometry.dispose();if(c.material)c.material.dispose();dayDotsGroup.remove(c)}
+  dayDots=[];selectedDot=-1;
+  if(detailArrowsEl){detailArrowsEl.style.display="none"}
+}
+
+function buildDayDots(centerMonthIdx){
+  clearDayDots();
+  var calMonths=[12,1,2,3,4,5,6,7,8,9,10,11];
+  var monthDays=[31,28,31,30,31,30,31,31,30,31,30,31];
+  // Show 3 months centered on centerMonthIdx
+  for(var offset=-1;offset<=1;offset++){
+    var mi=(centerMonthIdx+offset+12)%12;
+    var mo=calMonths[mi];
+    for(var d=1;d<=monthDays[mi];d++){
+      var ang=dateAng(mo,d);
+      var hasEvts=getEventsForDay(selectedYear,mo,d).length>0;
+      var isToday=isCurrentYear()&&d===td.getDate()&&mo===td.getMonth()+1;
+      var r=MR;
+      var dotR=isToday?.035:hasEvts?.03:.02;
+      var geo=new THREE.CircleGeometry(dotR,16);geo.rotateX(-Math.PI/2);
+      var col=isToday?0xE89B6C:hasEvts?0x8BB0C9:0xB8A692;
+      var mat=new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:0});
+      var mesh=new THREE.Mesh(geo,mat);
+      mesh.position.set(Math.cos(ang)*r,DH/2+.02,Math.sin(ang)*r);
+      dayDotsGroup.add(mesh);
+      dayDots.push({mesh:mesh,month:mo,day:d,angle:ang,hasEvts:hasEvts,targetOpacity:.85});
+      // Event ring indicator
+      if(hasEvts&&!isToday){
+        var ringGeo=new THREE.RingGeometry(dotR+.005,dotR+.012,16);ringGeo.rotateX(-Math.PI/2);
+        var ringMesh=new THREE.Mesh(ringGeo,new THREE.MeshBasicMaterial({color:0xE89B6C,transparent:true,opacity:0}));
+        ringMesh.position.copy(mesh.position);ringMesh.position.y+=.001;
+        dayDotsGroup.add(ringMesh);
+      }
+    }
+  }
+  if(!detailArrowsEl){
+    detailArrowsEl=document.createElement("div");
+    detailArrowsEl.style.cssText="position:fixed;bottom:80px;left:0;right:0;z-index:10;display:flex;justify-content:center;gap:12px;pointer-events:none";
+    detailArrowsEl.innerHTML='<button class="vb" style="pointer-events:auto" id="dLeft">← prev</button><button class="vb" style="pointer-events:auto" id="dRight">next →</button>';
+    document.body.appendChild(detailArrowsEl);
+    document.getElementById("dLeft").addEventListener("click",function(){detailCenter=(detailCenter-1+12)%12;buildDayDots(detailCenter);var a=DEC1+(detailCenter*30+15)*Math.PI/180;tT=-a+Math.PI});
+    document.getElementById("dRight").addEventListener("click",function(){detailCenter=(detailCenter+1)%12;buildDayDots(detailCenter);var a=DEC1+(detailCenter*30+15)*Math.PI/180;tT=-a+Math.PI});
+  }
+  detailArrowsEl.style.display="flex";
+}
+
+// Update day dots opacity (fade in when in detail view)
+function updateDayDots(){
+  var inDetail=(aV===DETAIL_IDX);
+  dayDots.forEach(function(dd){
+    var target=inDetail?dd.targetOpacity:0;
+    dd.mesh.material.opacity+=(target-dd.mesh.material.opacity)*.12;
+  });
+  // Also fade ring indicators
+  for(var i=0;i<dayDotsGroup.children.length;i++){
+    var c=dayDotsGroup.children[i];
+    if(c.material&&c.material.opacity!==undefined){
+      var target=inDetail?.85:0;
+      c.material.opacity+=(target-c.material.opacity)*.12;
+    }
+  }
+}
+
+// Raycast day dots on click
+function checkDotClick(px,py){
+  if(aV!==DETAIL_IDX||!dayDots.length)return false;
+  var r=cv.getBoundingClientRect();
+  var mx=((px-r.left)/r.width)*2-1;
+  var my=-((py-r.top)/r.height)*2+1;
+  var rc=new THREE.Raycaster();
+  rc.setFromCamera(new THREE.Vector2(mx,my),cam);
+  var meshes=dayDots.map(function(d){return d.mesh});
+  var hits=rc.intersectObjects(meshes);
+  if(hits.length>0){
+    for(var i=0;i<dayDots.length;i++){
+      if(dayDots[i].mesh===hits[0].object){
+        selectedDot=i;
+        moveH(dayDots[i].angle);
+        // Highlight selected
+        dayDots.forEach(function(dd,j){
+          dd.mesh.scale.set(j===i?1.8:1,j===i?1.8:1,1);
+        });
+        // Show events if any
+        if(dayDots[i].hasEvts){
+          var mo=dayDots[i].month;
+          var monthIdx=REAL_MONTHS.findIndex(function(rm){return rm.cal===mo});
+          if(monthIdx>=0)showCalendar(monthIdx);
+        }
         return true;
       }
     }
@@ -610,15 +956,16 @@ function checkCardClick(px,py){
   return false;
 }
 
-// Card click is handled in the main pointerup — see tapStart tracking below
+// Double-tap detection for entering detail view
+var lastTapTime=0,lastTapPos={x:0,y:0};
 
 function resize(){var w=window.innerWidth,h=window.innerHeight;R.setSize(w,h);cam.aspect=w/h;cam.updateProjectionMatrix()}
 window.addEventListener("resize",resize);resize();
 
-if(isDesk){document.getElementById("sub-hint").textContent="drag to orbit · scroll to zoom · click center to move hand"}
+if(isDesk){document.getElementById("sub-hint").textContent="drag to orbit · scroll to zoom · click center to move hand · double-click for detail"}
 
-(function anim(){requestAnimationFrame(anim);updC();updateCards();R.render(Sc,cam)})();
-buildB();buildV();updI();
+(function anim(){requestAnimationFrame(anim);updC();updateCards();updateDayDots();R.render(Sc,cam)})();
+buildB();buildV();buildY();updI();
 
 })();
 </script>
