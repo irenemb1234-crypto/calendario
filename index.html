@@ -284,16 +284,18 @@ var handOff=null;
 function hAng(){return handOff!==null?handOff:dateAng(td.getMonth()+1,td.getDate())}
 var hG=new THREE.Group();Sc.add(hG);
 var hL=TICK_OR+.05;
-// Thin elegant line (PlaneGeometry rotated flat)
+// Thin elegant line (PlaneGeometry baked flat on XZ plane)
 var handW=.012,handMat=new THREE.MeshBasicMaterial({color:0xE89B6C,transparent:true,opacity:.7,side:THREE.DoubleSide});
-var shaft=new THREE.Mesh(new THREE.PlaneGeometry(hL,handW),handMat);
-shaft.rotation.x=-Math.PI/2;
+var shaftGeo=new THREE.PlaneGeometry(hL,handW);shaftGeo.rotateX(-Math.PI/2);
+var shaft=new THREE.Mesh(shaftGeo,handMat);
 hG.add(shaft);
 // Crosshair at endpoint (+)
 var chSize=.05,chW=.006;
 var chMat=new THREE.MeshBasicMaterial({color:0xE89B6C,transparent:true,opacity:.8,side:THREE.DoubleSide});
-var chH=new THREE.Mesh(new THREE.PlaneGeometry(chSize,chW),chMat);chH.rotation.x=-Math.PI/2;hG.add(chH);
-var chV=new THREE.Mesh(new THREE.PlaneGeometry(chW,chSize),chMat.clone());chV.rotation.x=-Math.PI/2;hG.add(chV);
+var chHGeo=new THREE.PlaneGeometry(chSize,chW);chHGeo.rotateX(-Math.PI/2);
+var chH=new THREE.Mesh(chHGeo,chMat);hG.add(chH);
+var chVGeo=new THREE.PlaneGeometry(chW,chSize);chVGeo.rotateX(-Math.PI/2);
+var chV=new THREE.Mesh(chVGeo,chMat.clone());hG.add(chV);
 // Small flat center dot
 var ctrGeo=new THREE.CircleGeometry(.035,24);ctrGeo.rotateX(-Math.PI/2);
 var ctr=new THREE.Mesh(ctrGeo,new THREE.MeshBasicMaterial({color:0xE89B6C}));hG.add(ctr);
@@ -301,9 +303,9 @@ var ctr=new THREE.Mesh(ctrGeo,new THREE.MeshBasicMaterial({color:0xE89B6C}));hG.
 var tip={position:new THREE.Vector3()};
 function updH(){
   var a=hAng(),y=DH/2+.015,tx=Math.cos(a)*hL,tz=Math.sin(a)*hL;
-  shaft.position.set(tx/2,y,tz/2);shaft.rotation.y=-a;shaft.rotation.x=-Math.PI/2;
-  chH.position.set(tx,y,tz);chH.rotation.y=-a;chH.rotation.x=-Math.PI/2;
-  chV.position.set(tx,y,tz);chV.rotation.y=-a;chV.rotation.x=-Math.PI/2;
+  shaft.position.set(tx/2,y,tz/2);shaft.rotation.y=-a;
+  chH.position.set(tx,y,tz);chH.rotation.y=-a;
+  chV.position.set(tx,y,tz);chV.rotation.y=-a;
   tip.position.set(tx,y,tz);ctr.position.y=y;
 }
 updH();
