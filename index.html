@@ -443,9 +443,15 @@ function setV(i){
     var ha=hAng();
     detailCenter=Math.floor(((ha-DEC1)*180/Math.PI)/30)%12;
     tT=-ha+Math.PI;
+    // Shift disk center to far left of screen using view offset
+    var w=window.innerWidth,h=window.innerHeight;
+    cam.aspect=(w*2)/h;cam.setViewOffset(w*2,h,w,0,w,h);cam.updateProjectionMatrix();
     buildDayDots(detailCenter);
   }else{
     tT=VW[i].t;clearDayDots();
+    // Restore normal centered view
+    var w=window.innerWidth,h=window.innerHeight;
+    cam.clearViewOffset();cam.aspect=w/h;cam.updateProjectionMatrix();
   }
   buildV();
 }
@@ -861,11 +867,13 @@ document.addEventListener("keydown",function(e){
 var dayDotsGroup=new THREE.Group();Sc.add(dayDotsGroup);
 var dayDots=[],selectedDot=-1;
 var detailArrowsEl=null;
+var detailSeasonEl=null;
 
 function clearDayDots(){
   while(dayDotsGroup.children.length){var c=dayDotsGroup.children[0];if(c.geometry)c.geometry.dispose();if(c.material)c.material.dispose();dayDotsGroup.remove(c)}
   dayDots=[];selectedDot=-1;
   if(detailArrowsEl){detailArrowsEl.style.display="none"}
+  if(detailSeasonEl){detailSeasonEl.style.display="none"}
 }
 
 function buildDayDots(centerMonthIdx){
@@ -907,6 +915,16 @@ function buildDayDots(centerMonthIdx){
     document.getElementById("dRight").addEventListener("click",function(){detailCenter=(detailCenter+1)%12;buildDayDots(detailCenter);var a=DEC1+(detailCenter*30+15)*Math.PI/180;tT=-a+Math.PI});
   }
   detailArrowsEl.style.display="flex";
+  // Season label
+  var si=Math.floor(centerMonthIdx/3);
+  var s=SEASONS[si];
+  if(!detailSeasonEl){
+    detailSeasonEl=document.createElement("div");
+    detailSeasonEl.style.cssText="position:fixed;left:18px;top:50%;transform:translateY(-50%);z-index:10;pointer-events:none;display:flex;flex-direction:column;align-items:flex-start;gap:4px";
+    document.body.appendChild(detailSeasonEl);
+  }
+  detailSeasonEl.innerHTML='<div style="font-size:clamp(28px,5vw,52px);font-weight:900;color:'+s.accent+';letter-spacing:-.02em;line-height:1;font-family:inherit;writing-mode:vertical-lr;text-orientation:mixed;transform:rotate(180deg)">'+s.name.toUpperCase()+'</div>';
+  detailSeasonEl.style.display="flex";
 }
 
 // Update day dots opacity (fade in when in detail view)
@@ -961,7 +979,7 @@ function checkDotClick(px,py){
 // Double-tap detection for entering detail view
 var lastTapTime=0,lastTapPos={x:0,y:0};
 
-function resize(){var w=window.innerWidth,h=window.innerHeight;R.setSize(w,h);cam.aspect=w/h;cam.updateProjectionMatrix()}
+function resize(){var w=window.innerWidth,h=window.innerHeight;R.setSize(w,h);if(aV===DETAIL_IDX){cam.aspect=(w*2)/h;cam.setViewOffset(w*2,h,w,0,w,h)}else{cam.clearViewOffset();cam.aspect=w/h}cam.updateProjectionMatrix()}
 window.addEventListener("resize",resize);resize();
 
 if(isDesk){document.getElementById("sub-hint").textContent="drag to orbit · scroll to zoom · click center to move hand · double-click for detail"}
