@@ -642,16 +642,12 @@ function fanCards(centerIdx){
   carouselActive=true;carouselCenter=centerIdx;
   cardStates=[];
   var fwd=new THREE.Vector3();cam.getWorldDirection(fwd);
-  var camRight=new THREE.Vector3();camRight.crossVectors(fwd,new THREE.Vector3(0,1,0)).normalize();
-  var fwdFlat=new THREE.Vector3(fwd.x,0,fwd.z);
-  if(fwdFlat.length()<0.01){fwdFlat.set(0,0,-1)}else{fwdFlat.normalize()}
-  var dist=isDesk?2.5:3.5;
+  var camRight=new THREE.Vector3();camRight.crossVectors(fwd,new THREE.Vector3(0,1,0));
+  if(camRight.length()<0.01){camRight.set(1,0,0)}else{camRight.normalize()}
   var cardY=DH/2+CARD_H/2+0.05;
-  var lookPt=new THREE.Vector3(
-    cam.position.x+fwdFlat.x*dist,
-    cardY,
-    cam.position.z+fwdFlat.z*dist
-  );
+  // Center the fan on the clicked card's ring position, not a camera-projected point
+  var clickedPos=cards[centerIdx].origPos;
+  var lookPt=new THREE.Vector3(clickedPos.x,cardY,clickedPos.z);
 
   for(var i=0;i<cards.length;i++){
     var c=cards[i];
