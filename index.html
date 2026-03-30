@@ -620,7 +620,7 @@ CARD_ORDER.forEach(function(ri,i){
   // Rotate to face along the ring's tangent (clockwise direction)
   mesh.rotation.y=-midAng+Math.PI;
   cardGroup.add(mesh);
-  cards.push({mesh:mesh,monthIdx:ri,angle:midAng});
+  cards.push({mesh:mesh,monthIdx:ri,angle:midAng,origPos:mesh.position.clone(),origRotY:-midAng+Math.PI});
 });
 
 // Rebuild card textures (for year changes)
@@ -643,21 +643,27 @@ function fanCards(centerIdx){
   cardStates=[];
   var fwd=new THREE.Vector3();cam.getWorldDirection(fwd);
   var camRight=new THREE.Vector3();camRight.crossVectors(fwd,new THREE.Vector3(0,1,0)).normalize();
-  var camUp=new THREE.Vector3(0,1,0);
-  var lookPt=new THREE.Vector3().copy(cam.position).add(fwd.multiplyScalar(isDesk?3.5:5));
+  var fwdFlat=new THREE.Vector3(fwd.x,0,fwd.z);
+  if(fwdFlat.length()<0.01){fwdFlat.set(0,0,-1)}else{fwdFlat.normalize()}
+  var dist=isDesk?2.5:3.5;
+  var cardY=DH/2+CARD_H/2+0.05;
+  var lookPt=new THREE.Vector3(
+    cam.position.x+fwdFlat.x*dist,
+    cardY,
+    cam.position.z+fwdFlat.z*dist
+  );
 
   for(var i=0;i<cards.length;i++){
     var c=cards[i];
     var diff=((i-centerIdx)%12+12)%12;if(diff>6)diff-=12;
     var visible=Math.abs(diff)<=2;
-    // Store original positions
-    var origPos=c.mesh.position.clone();
-    var origRotY=c.mesh.rotation.y;
+    // Use original ring positions stored at creation
+    var origPos=c.origPos.clone();
+    var origRotY=c.origRotY;
 
     if(visible){
       var xOff=diff*(isDesk?.55:.45);
-      var zOff=-Math.abs(diff)*.3;
-      var targetPos=lookPt.clone().add(camRight.clone().multiplyScalar(xOff)).add(new THREE.Vector3(0,Math.abs(diff)*-.05,0)).add(fwd.clone().normalize().multiplyScalar(zOff));
+      var targetPos=lookPt.clone().add(camRight.clone().multiplyScalar(xOff)).add(new THREE.Vector3(0,Math.abs(diff)*-.05,0));
       var targetRotY=Math.atan2(cam.position.x-targetPos.x,cam.position.z-targetPos.z);
       var sc=diff===0?1:.85-Math.abs(diff)*.12;
       var op=diff===0?.95:.7-Math.abs(diff)*.15;
@@ -678,12 +684,11 @@ function fanCards(centerIdx){
 
 function collapseCards(){
   carouselActive=false;carouselCenter=-1;
-  cards.forEach(function(c,i){
-    if(cardStates[i]){
-      c.mesh.position.copy(cardStates[i].origPos);
-      c.mesh.rotation.y=cardStates[i].origRotY;
-      c.mesh.scale.set(1,1,1);
-    }
+  cards.forEach(function(c){
+    c.mesh.position.copy(c.origPos);
+    c.mesh.rotation.y=c.origRotY;
+    c.mesh.scale.set(1,1,1);
+    c.mesh.material.opacity=0;
   });
   cardStates=[];
 }
